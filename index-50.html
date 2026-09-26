@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>POKER DROP</title>
+<style>
+:root{--bg:#08131b;--panel:#102431;--line:#315064;--gold:#ffd166;--txt:#eef7fb}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:radial-gradient(circle at 50% 10%,#173448,#071018 62%);color:var(--txt);font-family:system-ui,-apple-system,"Segoe UI",sans-serif;display:flex;align-items:center;justify-content:center}
+.wrap{display:grid;grid-template-columns:auto 220px;gap:18px;align-items:start;padding:16px}
+h1{margin:0 0 8px;letter-spacing:.08em;font-size:28px}
+canvas{background:#071018;border:3px solid #42667c;border-radius:10px;box-shadow:0 12px 40px #0008;touch-action:none}#game{width:300px;height:600px}
+.panel{background:#102431dd;border:1px solid #315064;border-radius:12px;padding:14px}
+.stat{font-size:13px;opacity:.75}.big{font-size:26px;font-weight:800;margin-bottom:6px}
+#message{min-height:38px;color:var(--gold);font-weight:800}
+button:disabled{opacity:.35;cursor:not-allowed}button{width:100%;border:0;border-radius:9px;padding:11px;margin-top:8px;background:#2b6988;color:white;font-weight:800;cursor:pointer}
+.help{font-size:12px;line-height:1.65;opacity:.8;margin-top:12px}
+.touch{display:none;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:10px}
+.touch button{margin:0;padding:13px 4px;font-size:18px}
+@media(max-width:700px){body{align-items:flex-start}.wrap{grid-template-columns:1fr;padding:4px 8px}.wrap>div>h1{font-size:22px;margin:0 0 3px}.panel{width:100%;max-width:330px}.touch{display:grid;margin-top:4px;transform:translateY(-8px)}.touch button{padding:10px 4px}#game{width:min(100%,300px);height:auto}canvas{max-width:100%;height:auto}}
+
+.overlay{position:fixed;inset:0;z-index:50;background:radial-gradient(circle at 50% 20%,#173448,#071018 68%);display:flex;align-items:center;justify-content:center;padding:20px}
+.overlay.hidden{display:none}.modal{width:min(430px,92vw);background:#102431;border:2px solid #42667c;border-radius:18px;padding:28px;text-align:center;box-shadow:0 18px 60px #000a}
+.logo{font-size:34px;font-weight:900;letter-spacing:.08em;margin-bottom:8px}.tag{opacity:.75;margin-bottom:28px}.modal button{font-size:18px;padding:14px;margin-top:12px}.rules{text-align:left;max-height:88vh;overflow:auto}.rules h2{text-align:center;color:#ffd166}.rules p{line-height:1.65}.rulehands{line-height:1.6;background:#071018;padding:14px;border-radius:10px;margin:14px 0;color:#dceaf1}
+</style>
+</head>
+<body>
+<div id="titleScreen" class="overlay">
+  <div class="modal">
+    <div class="logo">♠ POKER DROP ♥</div>
+    <div class="tag">5列のカード落ちゲー × ポーカー</div>
+    <button id="startBtn">GAME START</button>
+    <button id="rulesBtn">RULES</button>
+  </div>
+</div>
+<div id="rulesScreen" class="overlay hidden">
+  <div class="modal rules">
+    <h2>RULES</h2>
+    <p>2枚組のカードを落とし、横5枚でポーカー役を作るとその行が消えます。</p>
+    <p>カードは着地後、ぷよぷよ式に下へ落下。ワンペアでも消去できます。</p>
+    <p><b>強い役ほどCHIPSを獲得。</b> CHIPSはJOKER・DELETE・FLUSHに使えます。</p>
+    <p>このゲームでは同じ数字・スートが盤面に残ることがあるため、<b>FIVE OF A KIND</b>も特別役として認定します。</p>
+    <div class="rulehands">ONE PAIR → 0<br>TWO PAIR → +1<br>THREE → +2<br>STRAIGHT → +3<br>FLUSH → +4<br>FULL HOUSE → +5<br>FOUR → +7<br>STRAIGHT FLUSH → +10<br>ROYAL → +15<br><b>FIVE OF A KIND → +20</b></div>
+    <button id="rulesBack">BACK</button>
+  </div>
+</div>
+
+<div class="wrap">
+  <div>
+    <h1>♠ POKER DROP ♥</h1>
+    <canvas id="game" width="330" height="660"></canvas>
+    <div class="touch">
+      <button data-a="left">←</button><button data-a="right">→</button>
+      <button data-a="ccw">↺</button><button data-a="cw">↻</button>
+      <button data-a="down">↓</button><button data-a="drop">DROP</button>
+      <button data-a="ccw">Z</button><button data-a="cw">X</button>
+    </div>
+  </div>
+  <aside class="panel">
+    <div class="stat">SCORE</div><div id="score" class="big">0</div>
+    <div class="stat">CHIPS</div><div id="chips" class="big">0</div>
+    <div class="stat">HAND</div><div id="message">—</div>
+    <button id="jokerBtn">JOKER — 4 CHIPS</button>
+    <button id="deleteBtn">DELETE — 5 CHIPS</button>
+    <button id="flushBtn">FLUSH — 8 CHIPS</button>
+    <button id="restart">RESTART</button>
+    <div class="help">
+      ← → 移動 / ↓ ソフトドロップ<br>
+      Z 左回転 / X・↑ 右回転<br>
+      Space ハードドロップ<br><br>
+      横5枚でポーカー役を作ると消去。<br>
+      ワンペア以上で成立した横1列を消去。<br>
+      強い役ほどCHIPSを獲得します。<br><br>
+      JOKER: 落下中のカード1枚を万能札にする<br>
+      DELETE: 盤面のカード1枚をクリックして消去<br>
+      FLUSH: 一番下のカードがある行を強制消去
+    </div>
+  </aside>
+</div>
+<script>
+(()=>{
+let audioCtx=null;
+function ac(){if(!audioCtx)audioCtx=new (window.AudioContext||window.webkitAudioContext)();if(audioCtx.state==='suspended')audioCtx.resume();return audioCtx}
+function tone(freq,dur=.07,type='square',vol=.035,delay=0){
+ const a=ac(),o=a.createOscillator(),g=a.createGain(),t=a.currentTime+delay;
+ o.type=type;o.frequency.setValueAtTime(freq,t);g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.0001,t+dur);
+ o.connect(g);g.connect(a.destination);o.start(t);o.stop(t+dur);
+}
+function sfx(name){
+ if(name==='move')tone(180,.025,'square',.012);
+ if(name==='rotate'){tone(260,.035,'square',.018);tone(360,.035,'square',.012,.025)}
+ if(name==='drop')tone(100,.09,'triangle',.04);
+ if(name==='hand'){tone(440,.08,'square',.03);tone(660,.09,'square',.03,.08);tone(880,.13,'square',.035,.17)}
+ if(name==='chip'){tone(740,.05,'sine',.035);tone(980,.08,'sine',.03,.055)}
+ if(name==='gameover'){tone(300,.15,'sawtooth',.03);tone(220,.2,'sawtooth',.03,.14);tone(140,.35,'sawtooth',.03,.32)}
+}
+const W=5,H=12,CW=66,CH=55;
+const cvs=document.querySelector('#game'),ctx=cvs.getContext('2d');
+
+const scoreEl=document.querySelector('#score'),chipsEl=document.querySelector('#chips'),msg=document.querySelector('#message');
+let board,deck,pair,nextPair,score,chips,over,last=0,fall=0,lock=false,deleteMode=false;
+
+const suits=['♠','♥','♦','♣'], ranks=[2,3,4,5,6,7,8,9,10,11,12,13,14];
+const rankText=r=>({11:'J',12:'Q',13:'K',14:'A'}[r]||r);
+function makeDeck(){let d=[];for(const s of suits)for(const r of ranks)d.push({s,r});return shuffle(d)}
+function shuffle(a){for(let i=a.length-1;i;i--){let j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+function drawCard(){if(!deck.length)deck=makeDeck();return deck.pop()}
+function newPair(){return {cards:[drawCard(),drawCard()],x:2,y:0,rot:0}}
+function cells(p=pair){
+ const dirs=[[0,-1],[1,0],[0,1],[-1,0]], d=dirs[p.rot];
+ return [{x:p.x,y:p.y,c:p.cards[0]},{x:p.x+d[0],y:p.y+d[1],c:p.cards[1]}];
+}
+function valid(p){
+ return cells(p).every(q=>q.x>=0&&q.x<W&&q.y<H&&(q.y<0||!board[q.y][q.x]));
+}
+function move(dx,dy){if(over||lock)return false;let p={...pair,x:pair.x+dx,y:pair.y+dy};if(valid(p)){pair=p;if(dx)sfx('move');return true}return false}
+function rotate(dir){
+ if(over||lock)return;
+ for(const kick of [0,-1,1]){
+  let p={...pair,x:pair.x+kick,rot:(pair.rot+dir+4)%4};
+  if(valid(p)){pair=p;sfx('rotate');return}
+ }
+}
+function settle(){
+ for(const q of cells()) if(q.y<0){gameOver();return}
+ for(const q of cells()) board[q.y][q.x]=q.c;
+ lock=true; resolve().then(()=>{if(!over){pair=nextPair;nextPair=newPair();lock=false;if(!valid(pair))gameOver();drawNext()}});
+}
+function gravity(){
+ let moved=false;
+ for(let x=0;x<W;x++){
+  let cards=[];
+  for(let y=H-1;y>=0;y--)if(board[y][x])cards.push(board[y][x]);
+  for(let y=0;y<H;y++)board[y][x]=null;
+  cards.forEach((c,i)=>board[H-1-i][x]=c);
+ }
+ return moved;
+}
+function evalNatural(cs){
+ let rs=cs.map(c=>c.r).sort((a,b)=>a-b), counts={};
+ rs.forEach(r=>counts[r]=(counts[r]||0)+1);
+ let groups=Object.values(counts).sort((a,b)=>b-a);
+ let flush=cs.every(c=>c.s===cs[0].s);
+ let uniq=[...new Set(rs)], straight=false, royal=false;
+ if(uniq.length===5){
+  straight=(uniq[4]-uniq[0]===4)||JSON.stringify(uniq)==='[2,3,4,5,14]';
+  royal=JSON.stringify(uniq)==='[10,11,12,13,14]';
+ }
+ if(groups[0]===5)return {name:'FIVE OF A KIND!',chips:20,pts:20000,rank:10};
+ if(straight&&flush&&royal)return {name:'ROYAL FLUSH!',chips:15,pts:10000,rank:9};
+ if(straight&&flush)return {name:'STRAIGHT FLUSH!',chips:10,pts:5000,rank:8};
+ if(groups[0]===4)return {name:'FOUR OF A KIND!',chips:7,pts:3000,rank:7};
+ if(groups[0]===3&&groups[1]===2)return {name:'FULL HOUSE!',chips:5,pts:1800,rank:6};
+ if(flush)return {name:'FLUSH!',chips:4,pts:1200,rank:5};
+ if(straight)return {name:'STRAIGHT!',chips:3,pts:900,rank:4};
+ if(groups[0]===3)return {name:'THREE OF A KIND!',chips:2,pts:600,rank:3};
+ if(groups[0]===2&&groups[1]===2)return {name:'TWO PAIR!',chips:1,pts:400,rank:2};
+ if(groups[0]===2)return {name:'ONE PAIR!',chips:0,pts:200,rank:1};
+ return null;
+}
+function evalHand(cs){
+ const ji=[]; cs.forEach((c,i)=>{if(c.joker)ji.push(i)});
+ if(!ji.length)return evalNatural(cs);
+ let best=null, choices=[]; for(const s of suits)for(const r of ranks)choices.push({s,r});
+ function rec(k,a){
+  if(k===ji.length){let h=evalNatural(a);if(h&&(!best||h.rank>best.rank||(h.rank===best.rank&&h.pts>best.pts)))best=h;return}
+  for(const c of choices){let b=a.slice();b[ji[k]]=c;rec(k+1,b)}
+ }
+ rec(0,cs.slice()); return best;
+}
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+async function resolve(){
+ let combo=0;
+ while(true){
+  gravity(); render(); await sleep(100);
+  let hits=[];
+  for(let y=0;y<H;y++)if(board[y].every(Boolean)){let h=evalHand(board[y]);if(h)hits.push({y,h})}
+  if(!hits.length)break;
+  combo++;
+  let names=[];
+  for(const {y,h} of hits){
+   names.push(h.name+(h.chips?' +'+h.chips+' CHIPS':''));
+   for(let x=0;x<W;x++)board[y][x]=null;
+   score+=h.pts*combo; chips+=h.chips;
+  }
+  msg.textContent=(combo>1?combo+' CHAIN!  ':'')+names.join(' / ');sfx('hand');
+  updateUI();
+  render(); await sleep(360);
+ }
+}
+function updateUI(){
+ scoreEl.textContent=score.toLocaleString(); chipsEl.textContent=chips;
+ document.querySelector('#jokerBtn').disabled=chips<4||over||pair.cards.some(c=>c.joker);
+ document.querySelector('#deleteBtn').disabled=chips<5||over;
+ document.querySelector('#flushBtn').disabled=chips<8||over;
+}
+function spend(n){if(chips<n||over)return false;chips-=n;updateUI();sfx('chip');return true}
+function useJoker(){
+ if(lock||!pair||pair.cards.some(c=>c.joker)||!spend(4))return;
+ // Convert the pivot card; a joker can represent any rank/suit when the row is scored.
+ pair.cards[0]={s:'★',r:0,joker:true};
+ msg.textContent='JOKER!';
+ render();
+}
+function useDelete(){
+ if(chips<5||over)return;
+ deleteMode=!deleteMode;
+ msg.textContent=deleteMode?'消したいカードをクリック':'DELETE キャンセル';
+ render();
+}
+async function deleteAt(x,y){
+ if(!deleteMode||!board[y]||!board[y][x])return;
+ if(!spend(5))return;
+ board[y][x]=null;deleteMode=false;msg.textContent='DELETE!';
+ lock=true;gravity();render();await sleep(180);await resolve();lock=false;updateUI();
+}
+async function useFlush(){
+ if(lock)return;
+ if(!spend(8))return;
+ let y=-1;
+ for(let yy=H-1;yy>=0;yy--)if(board[yy].some(Boolean)){y=yy;break}
+ if(y<0){chips+=8;updateUI();msg.textContent='消せる行がありません';return}
+ for(let x=0;x<W;x++)board[y][x]=null;
+ msg.textContent='FLUSH!';lock=true;render();await sleep(220);gravity();await resolve();lock=false;updateUI();
+}
+function hardDrop(){if(over||lock)return;sfx('drop');while(move(0,1))score+=2;updateUI();settle()}
+function gameOver(){over=true;sfx('gameover');msg.textContent='GAME OVER';render()}
+function reset(){
+ board=Array.from({length:H},()=>Array(W).fill(null));deck=makeDeck();score=0;chips=0;over=false;lock=false;deleteMode=false;
+ pair=newPair();nextPair=newPair();msg.textContent='—';drawNext();updateUI();render();
+}
+function card(g,c,x,y,w=CW,h=CH){
+ let suitColor={'♠':'#3b82f6','♥':'#ef4444','♦':'#f2c94c','♣':'#22c55e'}[c.s]||'#17202a';
+ g.save();g.fillStyle=c.joker?'#fff0b8':'#f7f3e8';g.strokeStyle=c.joker?'#ffd166':'#b8c4c8';g.lineWidth=2;
+ round(g,x+3,y+3,w-6,h-6,7);g.fill();g.stroke();
+ g.fillStyle=c.joker?'#8b5cf6':suitColor;g.font='bold 18px system-ui';g.textAlign='center';g.textBaseline='middle';
+ g.fillText(c.joker?'JOKER':rankText(c.r)+c.s,x+w/2,y+h/2);g.restore();
+}
+function round(g,x,y,w,h,r){g.beginPath();g.roundRect(x,y,w,h,r)}
+function render(){
+ ctx.clearRect(0,0,cvs.width,cvs.height);
+ ctx.strokeStyle='#17303f';ctx.lineWidth=1;
+ for(let x=0;x<=W;x++){ctx.beginPath();ctx.moveTo(x*CW,0);ctx.lineTo(x*CW,H*CH);ctx.stroke()}
+ for(let y=0;y<=H;y++){ctx.beginPath();ctx.moveTo(0,y*CH);ctx.lineTo(W*CW,y*CH);ctx.stroke()}
+ for(let y=0;y<H;y++)for(let x=0;x<W;x++)if(board[y][x])card(ctx,board[y][x],x*CW,y*CH);
+ if(!over)for(const q of cells())if(q.y>=0)card(ctx,q.c,q.x*CW,q.y*CH);
+ if(deleteMode){ctx.fillStyle='#ffd16622';ctx.fillRect(0,0,cvs.width,cvs.height);ctx.fillStyle='#ffd166';ctx.font='bold 18px system-ui';ctx.textAlign='center';ctx.fillText('DELETE: カードを選択',cvs.width/2,25)}
+ if(over){ctx.fillStyle='#000a';ctx.fillRect(0,0,cvs.width,cvs.height);ctx.fillStyle='#fff';ctx.font='bold 34px system-ui';ctx.textAlign='center';ctx.fillText('GAME OVER',cvs.width/2,cvs.height/2)}
+}
+function drawNext(){}
+function action(a){
+ if(a==='left')move(-1,0); if(a==='right')move(1,0); if(a==='down'&&!move(0,1))settle();
+ if(a==='ccw')rotate(-1); if(a==='cw')rotate(1); if(a==='drop')hardDrop(); render();
+}
+document.addEventListener('keydown',e=>{
+ if(['ArrowLeft','ArrowRight','ArrowDown','ArrowUp',' ','z','Z','x','X'].includes(e.key))e.preventDefault();
+ if(e.repeat&&['z','Z','x','X','ArrowUp',' '].includes(e.key))return;
+ ({ArrowLeft:'left',ArrowRight:'right',ArrowDown:'down',ArrowUp:'cw','z':'ccw','Z':'ccw','x':'cw','X':'cw',' ':'drop'}[e.key])&&action(({ArrowLeft:'left',ArrowRight:'right',ArrowDown:'down',ArrowUp:'cw','z':'ccw','Z':'ccw','x':'cw','X':'cw',' ':'drop'})[e.key]);
+});
+document.querySelectorAll('[data-a]').forEach(b=>b.addEventListener('pointerdown',()=>action(b.dataset.a)));
+document.querySelector('#jokerBtn').onclick=useJoker;
+document.querySelector('#deleteBtn').onclick=useDelete;
+document.querySelector('#flushBtn').onclick=useFlush;
+cvs.addEventListener('pointerdown',e=>{
+ if(!deleteMode)return;
+ const r=cvs.getBoundingClientRect(),x=Math.floor((e.clientX-r.left)*cvs.width/r.width/CW),y=Math.floor((e.clientY-r.top)*cvs.height/r.height/CH);
+ deleteAt(x,y);
+});
+document.querySelector('#restart').onclick=reset;
+document.querySelector('#startBtn').onclick=()=>{ac();document.querySelector('#titleScreen').classList.add('hidden');reset()};
+document.querySelector('#rulesBtn').onclick=()=>{document.querySelector('#titleScreen').classList.add('hidden');document.querySelector('#rulesScreen').classList.remove('hidden')};
+document.querySelector('#rulesBack').onclick=()=>{document.querySelector('#rulesScreen').classList.add('hidden');document.querySelector('#titleScreen').classList.remove('hidden')};
+function loop(t){
+ if(!last)last=t;let dt=t-last;last=t;
+ if(!over&&!lock){fall+=dt;if(fall>650){fall=0;if(!move(0,1))settle();render()}}
+ requestAnimationFrame(loop);
+}
+reset();requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
